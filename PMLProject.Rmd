@@ -1,0 +1,116 @@
+---
+title: "Practical Machine Learning Course Project"
+output: html_document
+---
+
+<b>Objective:</b>
+The objective of this project is to undestand how well an individual is doing each type of exercise like running,sitting,walking and so. We have the data collected from the group of 6 individuals using devices such as Jawbone Up, Nike FuelBand, and Fitbit. We will find any patterns in their activity and try to predict the manner in which they did the exercise.
+
+<b>Report:</b>
+We will predict the exercise manner by buidling the predictive model on the classe variable which categorises the activity in different classes like A,B,C,D and E.
+
+Lets start by importing the train data. We will procced with following main step.
+
+1) Import the train data to perform initial analysis.
+2) Divide train data in train and test
+3) Build a predictive model on the train data and use cross validation to avoid overfitting if needed. 
+4) Use the model to predict test data. Check the accuracy of model.
+5) Apply the final model on the validation set.
+
+
+<b>PART 1 :Cleaning the data and subsetting it </b>
+```{r,echo=TRUE,cache=TRUE}
+# Import the data and replace blank records with NA's
+training<-read.csv("./pml-training.csv", header=TRUE, na.strings = c("", " ","NA"))
+
+# We will remove the unnecessary columns from the dataset and will use only numeric fields as predictors
+training<-training[,-c(1,2,3,4,5,6,7)]
+
+# We will remove NA columns for further clean up as keeping them will affect our prediction model
+training<-training[, !apply(training, 2, function(x) any(is.na(x)))] 
+
+dim(training)
+```
+
+Next part is subsetting the training data further into train and test dataset.
+
+```{r,echo=TRUE}
+
+#divide the training set into 60% train and 40% test
+library(caret)
+partition<-createDataPartition(training$classe,p=0.60,list=FALSE)
+train<-training[partition,]
+test<-training[-partition,]
+```
+
+<b>PART 2 :Model building and testing accuracy </b>
+
+Now,we have the cleaned data so lets decide which prediction algorithm we want to use. We are trying to predict the variable calsse which is the categorical variable hence we will use classification trees.
+
+<U>Model 1: classification Tree</U>
+
+```{r,echo=TRUE}
+# Set seed to reproduce the results.Number is not important, just make sure you use the same number next time to reproduce same results
+set.seed(32332)
+library(party)
+
+model<-ctree(classe~.,data=train)
+#plot(model)
+
+result<-predict(model,test[,-53],type="response")
+
+# Use confusion metrix to obtain accuracy
+confusionMatrix(result,test$classe)
+```
+
+Accuracy of this model is not that great. let's try randomForest classification tree.
+
+<U>Model 2: Random Forest</U>
+
+```{r,echo=TRUE}
+set.seed(32332)
+library(randomForest)
+
+#Build random forest tree to predict classe variable with rest all variables as predictors
+model<-randomForest(classe~.,data=train,importance=TRUE,ntree = 500)
+
+model
+#Plotting the model shows reduced error rate for each class as number of nodes increases
+plot(model)
+
+#Predict using the model on test data set
+result<-predict(model,test[,-53],type="response")
+```
+
+In random forests, there is no need for cross-validation or a separate test set to get an unbiased estimate of the test set error. It is estimated internally, during the run. When the training set for the current tree is drawn by sampling with replacement, about one-third of the cases are left out of the sample. This oob (out-of-bag) data is used to get a running unbiased estimate of the classification error as trees are added to the forest. 
+
+```{r,echo=TRUE}
+# Use confusion metrix to obtain accuracy
+confusionMatrix(result,test$classe)
+
+#Plot to indicate top 10 important variables for the model
+varImpPlot(model,sort=TRUE, n.var=10,main="Variable Importance")
+```
+
+Here estimate of test error (out of sample error) is 0.63%,very less and Accuracy of random forest is better than classification tree, so clearly we have the winner.
+
+
+<b>PART 3: Testing the predictions on validation set</b>
+
+```{r,echo=TRUE}
+# Import the validation data and replace blank records with NA's
+validation<-read.csv("./pml-testing.csv", header=TRUE, na.strings = c("", " ","NA"))
+
+# Repeat the same cleaning stpes we used on training data
+validation<-validation[,-c(1,2,3,4,5,6,7)]
+validation<-validation[, !apply(validation, 2, function(x) any(is.na(x)))] 
+dim(validation)
+
+final.model<-predict(model,validation)
+final.model
+```
+
+<b>Conclusion:</b>
+Random forest is better at predicting values for categorical variables.
+
+
